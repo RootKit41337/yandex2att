@@ -69,23 +69,17 @@ func TestCalculateHandler(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.Header.Set("Content-Type", "application/json")
-
 			rr := httptest.NewRecorder()
 			handler := http.HandlerFunc(calculator.CalculateHandler)
-
 			handler.ServeHTTP(rr, req)
-
 			if status := rr.Code; status != tt.expectedCode {
 				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedCode)
 			}
-
 			var response calculator.ResponseBody
 			json.NewDecoder(rr.Body).Decode(&response)
-
 			if response.Error != "" && response.Error != tt.expectedError {
 				t.Errorf("handler returned unexpected error: got %v want %v", response.Error, tt.expectedError)
 			}
-
 			if response.Result != tt.expectedResult {
 				t.Errorf("handler returned unexpected result: got %v want %v", response.Result, tt.expectedResult)
 			}
