@@ -36,6 +36,7 @@ func eval(expression string) (int, error) {
 	// Удаляем пробелы
 	expression = strings.ReplaceAll(expression, " ", "")
 
+	// Стек для чисел и операторов
 	var nums []int
 	var ops []byte
 	currentNum := 0
@@ -43,10 +44,12 @@ func eval(expression string) (int, error) {
 	for i := 0; i < len(expression); i++ {
 		char := expression[i]
 
+		// Если символ - цифра, формируем текущее число
 		if char >= '0' && char <= '9' {
 			currentNum = currentNum*10 + int(char-'0')
 		}
 
+		// Если символ - оператор или последний символ
 		if char == '+' || char == '-' || char == '*' || char == '/' || char == '(' || char == ')' || i == len(expression)-1 {
 			if char == ')' {
 				// Обрабатываем все операции до открывающей скобки
@@ -54,13 +57,16 @@ func eval(expression string) (int, error) {
 					currentNum = applyOperation(nums, ops, currentNum)
 				}
 				// Удаляем открывающую скобку
+				if len(ops) == 0 {
+					return 0, errors.New("mismatched parentheses")
+				}
 				ops = ops[:len(ops)-1]
 			} else {
 				// Обрабатываем операции с высоким приоритетом
 				for len(ops) > 0 && precedence(ops[len(ops)-1]) >= precedence(char) {
 					currentNum = applyOperation(nums, ops, currentNum)
 				}
-
+				// Добавляем текущее число и оператор в списки
 				nums = append(nums, currentNum)
 				ops = append(ops, char)
 				currentNum = 0
@@ -79,6 +85,9 @@ func eval(expression string) (int, error) {
 
 // Функция для применения операции
 func applyOperation(nums []int, ops []byte, currentNum int) int {
+	if len(nums) == 0 {
+		return currentNum
+	}
 	lastNum := nums[len(nums)-1]
 	nums = nums[:len(nums)-1]
 	lastOp := ops[len(ops)-1]
@@ -129,6 +138,8 @@ func CalculateHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if strings.Contains(err.Error(), "invalid") {
 			http.Error(w, `{"error": "Expression is not valid"}`, http.StatusUnprocessableEntity)
+		} else if strings.Contains(err.Error(), "mismatched parentheses") {
+			http.Error(w, `{"error": "Mismatched parentheses"}`, http.StatusUnprocessableEntity)
 		} else {
 			http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
 		}
