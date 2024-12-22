@@ -60,7 +60,7 @@ curl --location 'localhost/api/v1/calculate' \
 curl --location 'localhost/api/v1/calculate' \
 --header 'Content-Type: application/json' \
 --data '{
-  "expression": "(2+3"
+  "expression": "(9+1"
 }'
 
 curl --location 'localhost/api/v1/calculate' \
