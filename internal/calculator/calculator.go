@@ -2,149 +2,173 @@ package calculator
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
-type Request struct {
+// RequestBody структура для входящего запроса
+type RequestBody struct {
 	Expression string `json:"expression"`
 }
 
-type Response struct {
+// ResponseBody структура для исходящего ответа
+type ResponseBody struct {
 	Result string `json:"result,omitempty"`
 	Error  string `json:"error,omitempty"`
 }
 
-func Calculate(expression string) (string, error) {
-	// Проверка на наличие недопустимых символов
-	if strings.ContainsAny(expression, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
-		return "", errors.New("invalid expression")
-	}
-
-	// Вычисление выражения
-	result, err := eval(expression)
-	if err != nil {
-		return "", err
-	}
-
-	return strconv.Itoa(result), nil
-}
-
-func eval(expression string) (int, error) {
-	// Удаляем пробелы
-	expression = strings.ReplaceAll(expression, " ", "")
-
-	var nums []int
-	var ops []byte
-	currentNum := 0
-
-	for i := 0; i < len(expression); i++ {
-		char := expression[i]
-
-		if char >= '0' && char <= '9' {
-			currentNum = currentNum*10 + int(char-'0')
-		}
-
-		// Если символ - оператор или последний символ
-		if char == '+' || char == '-' || char == '*' || char == '/' || char == '(' || char == ')' || i == len(expression)-1 {
-			if char == ')' {
-				// Обрабатываем все операции до открывающей скобки
-				for len(ops) > 0 && ops[len(ops)-1] != '(' {
-					currentNum = applyOperation(nums, ops, currentNum)
-				}
-				// Удаляем открывающую скобку
-				if len(ops) == 0 {
-					return 0, errors.New("mismatched parentheses")
-				}
-				ops = ops[:len(ops)-1]
-			} else {
-				// Обрабатываем операции с высоким приоритетом
-				for len(ops) > 0 && precedence(ops[len(ops)-1]) >= precedence(char) {
-					currentNum = applyOperation(nums, ops, currentNum)
-				}
-				// Добавляем текущее число и оператор в списки
-				nums = append(nums, currentNum)
-				ops = append(ops, char)
-				currentNum = 0
-			}
-		}
-	}
-
-	// Обрабатываем оставшиеся операции
-	nums = append(nums, currentNum)
-	for len(ops) > 0 {
-		currentNum = applyOperation(nums, ops, currentNum)
-	}
-
-	return nums[0], nil
-}
-
-// Функция для применения операции
-func applyOperation(nums []int, ops []byte, currentNum int) int {
-	if len(nums) == 0 {
-		return currentNum
-	}
-	lastNum := nums[len(nums)-1]
-	nums = nums[:len(nums)-1]
-	lastOp := ops[len(ops)-1]
-	ops = ops[:len(ops)-1]
-
-	switch lastOp {
-	case '+':
-		return lastNum + currentNum
-	case '-':
-		return lastNum - currentNum
-	case '*':
-		return lastNum * currentNum
-	case '/':
-		if currentNum == 0 {
-			panic("division by zero")
-		}
-		return lastNum / currentNum
-	}
-	return currentNum
-}
-
-// Функция для определения приоритета операций
-func precedence(op byte) int {
-	switch op {
-	case '+', '-':
-		return 1
-	case '*', '/':
-		return 2
-	case '(':
-		return 0
-	}
-	return -1
-}
-
+// CalculateHandler обрабатывает запросы на вычисление выражений
 func CalculateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req Request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error": "Invalid request"}`, http.StatusBadRequest)
+	var reqBody RequestBody
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	result, err := Calculate(req.Expression)
+	result, err := calculate(reqBody.Expression)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid") {
+		if err.Error() == "invalid expression" {
 			http.Error(w, `{"error": "Expression is not valid"}`, http.StatusUnprocessableEntity)
-		} else if strings.Contains(err.Error(), "mismatched parentheses") {
-			http.Error(w, `{"error": "Mismatched parentheses"}`, http.StatusUnprocessableEntity)
 		} else {
 			http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
 		}
 		return
 	}
 
-	response := Response{Result: result}
-	w.WriteHeader(http.StatusOK)
+	response := ResponseBody{Result: fmt.Sprintf("%f", result)}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// calculate выполняет вычисление арифметического выражения
+func calculate(expression string) (float64, error) {
+	// Удаляем пробелы
+	expression = strings.ReplaceAll(expression, " ", "")
+	if strings.ContainsAny(expression, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+		return 0, fmt.Errorf("invalid expression")
+	}
+	
+
+	postfix, err := infixToPostfix(expression)
+	if err != nil {
+		return 0, err
+	}
+
+	return evaluatePostfix(postfix)
+}
+
+func infixToPostfix(expression string) ([]string, error) {
+	var output []string
+	var stack []string
+
+	precedence := map[string]int{
+		"+": 1,
+		"-": 1,
+		"*": 2,
+		"/": 2,
+		"(": 0,
+	}
+
+	for i := 0; i < len(expression); i++ {
+		token := string(expression[i])
+
+		if isNumber(token) {
+			// Если токен - число, добавляем его в выходной массив
+			num, j := readNumber(expression, i)
+			output = append(output, num)
+			i = j - 1
+		} else if token == "(" {
+			stack = append(stack, token)
+		} else if token == ")" {
+			for len(stack) > 0 && stack[len(stack)-1] != "(" {
+				output = append(output, stack[len(stack)-1])
+				stack = stack[:len(stack)-1]
+			}
+			if len(stack) == 0 {
+				return nil, fmt.Errorf("mismatched parentheses")
+			}
+			stack = stack[:len(stack)-1] 
+		} else if precedence[token] > 0 {
+			for len(stack) > 0 && precedence[stack[len(stack)-1]] >= precedence[token] {
+				output = append(output, stack[len(stack)-1])
+				stack = stack[:len(stack)-1]
+			}
+			stack = append(stack, token)
+		} else {
+			return nil, fmt.Errorf("invalid token: %s", token)
+		}
+	}
+
+	for len(stack) > 0 {
+		if stack[len(stack)-1] == "(" {
+			return nil, fmt.Errorf("mismatched parentheses")
+		}
+		output = append(output, stack[len(stack)-1])
+		stack = stack[:len(stack)-1]
+	}
+
+	return output, nil
+}
+
+func evaluatePostfix(postfix []string) (float64, error) {
+	var stack []float64
+
+	for _, token := range postfix {
+		if isNumber(token) {
+			num, _ := strconv.ParseFloat(token, 64)
+			stack = append(stack, num)
+		} else {
+			if len(stack) < 2 {
+				return 0, fmt.Errorf("invalid expression")
+			}
+			b := stack[len(stack)-1]
+			a := stack[len(stack)-2]
+			stack = stack[:len(stack)-2]
+
+			var result float64
+			switch token {
+			case "+":
+				result = a + b
+			case "-":
+				result = a - b
+			case "*":
+				result = a * b
+			case "/":
+				if b == 0 {
+					return 0, fmt.Errorf("division by zero")
+				}
+				result = a / b
+			default:
+				return 0, fmt.Errorf("invalid operator: %s", token)
+			}
+			stack = append(stack, result)
+		}
+	}
+
+	if len(stack) != 1 {
+		return 0, fmt.Errorf("invalid expression")
+	}
+	return stack[0], nil
+}
+
+// isNumber проверяет, является ли строка числом
+func isNumber(s string) bool {
+	_, err := strconv.ParseFloat(s, 64)
+	return err == nil
+}
+
+// readNumber считывает число из строки и возвращает его вместе с индексом следующего символа
+func readNumber(expression string, start int) (string, int) {
+	end := start
+	for end < len(expression) && (isNumber(string(expression[end])) || expression[end] == '.') {
+		end++
+	}
+	return expression[start:end], end
 }
