@@ -36,34 +36,51 @@ func eval(expression string) (int, error) {
 	// Удаляем пробелы
 	expression = strings.ReplaceAll(expression, " ", "")
 
-	var result int
-	var currentNum int
-	var operation byte = '+'
+	
+	var nums []int
+	var ops []byte
+	currentNum := 0
 
 	for i := 0; i < len(expression); i++ {
 		char := expression[i]
 
+		
 		if char >= '0' && char <= '9' {
 			currentNum = currentNum*10 + int(char-'0')
 		}
 
+		
 		if char == '+' || char == '-' || char == '*' || char == '/' || i == len(expression)-1 {
-			switch operation {
-			case '+':
-				result += currentNum
-			case '-':
-				result -= currentNum
-			case '*':
-				result *= currentNum
-			case '/':
-				if currentNum == 0 {
-					return 0, errors.New("division by zero")
+			if len(ops) > 0 && (ops[len(ops)-1] == '*' || ops[len(ops)-1] == '/') {
+				lastOp := ops[len(ops)-1]
+				ops = ops[:len(ops)-1]
+				lastNum := nums[len(nums)-1]
+				nums = nums[:len(nums)-1]
+
+				if lastOp == '*' {
+					currentNum = lastNum * currentNum
+				} else if lastOp == '/' {
+					if currentNum == 0 {
+						return 0, errors.New("division by zero")
+					}
+					currentNum = lastNum / currentNum
 				}
-				result /= currentNum
 			}
 
-			operation = char
+			
+			nums = append(nums, currentNum)
+			ops = append(ops, char)
 			currentNum = 0
+		}
+	}
+
+	// Второй проход: обработка сложения и вычитания
+	result := nums[0]
+	for i := 0; i < len(ops); i++ {
+		if ops[i] == '+' {
+			result += nums[i+1]
+		} else if ops[i] == '-' {
+			result -= nums[i+1]
 		}
 	}
 
