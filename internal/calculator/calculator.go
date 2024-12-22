@@ -36,7 +36,6 @@ func eval(expression string) (int, error) {
 	// Удаляем пробелы
 	expression = strings.ReplaceAll(expression, " ", "")
 
-	// Стек для чисел и операторов
 	var nums []int
 	var ops []byte
 	currentNum := 0
@@ -44,12 +43,10 @@ func eval(expression string) (int, error) {
 	for i := 0; i < len(expression); i++ {
 		char := expression[i]
 
-		// Если символ - цифра, формируем текущее число
 		if char >= '0' && char <= '9' {
 			currentNum = currentNum*10 + int(char-'0')
 		}
 
-		// Если символ - оператор или последний символ
 		if char == '+' || char == '-' || char == '*' || char == '/' || char == '(' || char == ')' || i == len(expression)-1 {
 			if char == ')' {
 				// Обрабатываем все операции до открывающей скобки
@@ -63,7 +60,7 @@ func eval(expression string) (int, error) {
 				for len(ops) > 0 && precedence(ops[len(ops)-1]) >= precedence(char) {
 					currentNum = applyOperation(nums, ops, currentNum)
 				}
-				// Добавляем текущее число и оператор в списки
+
 				nums = append(nums, currentNum)
 				ops = append(ops, char)
 				currentNum = 0
