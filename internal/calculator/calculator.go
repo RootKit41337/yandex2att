@@ -36,7 +36,6 @@ func eval(expression string) (int, error) {
 	// Удаляем пробелы
 	expression = strings.ReplaceAll(expression, " ", "")
 
-	// Стек для чисел и операторов
 	var nums []int
 	var ops []byte
 	currentNum := 0
@@ -44,7 +43,6 @@ func eval(expression string) (int, error) {
 	for i := 0; i < len(expression); i++ {
 		char := expression[i]
 
-		// Если символ - цифра, формируем текущее число
 		if char >= '0' && char <= '9' {
 			currentNum = currentNum*10 + int(char-'0')
 		}
